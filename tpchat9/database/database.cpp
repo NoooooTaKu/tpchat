@@ -4,6 +4,9 @@
 #include <QDir>
 #include <QTableView>
 #include <QSqlTableModel>
+#include <unistd.h>
+#include <sys/types.h>
+#include <pwd.h>
 #include "database.h"
 
 #define SENDFROMME  1
@@ -12,7 +15,12 @@
 Database::Database()
 {
     // check if the db file exists
-    bool dbFile = QFile::exists("/home/whf/db/chatdb");
+    struct passwd *pwd;
+    uid_t userid;
+    userid = getuid();
+    pwd = getpwuid(userid); //username: pwd->pw_name
+
+    bool dbFile = QFile::exists("/home/" + QString(pwd->pw_name) + "/chatdb");
 
     //if the db file does not exit, create one
     if (!dbFile)
@@ -46,8 +54,12 @@ Database::~Database()
  */
 bool Database::connectDatabase()
 {
+    struct passwd *pwd;
+    uid_t userid;
+    userid = getuid();
+    pwd = getpwuid(userid); //username: pwd->pw_name
     db = QSqlDatabase::addDatabase("QSQLITE");
-    db.setDatabaseName("/home/whf/db/chatdb");
+    db.setDatabaseName("/home/" + QString(pwd->pw_name) + "/chatdb");
     db.setUserName("tpchat");
     db.setPassword("123456");
     if (!db.open())
@@ -68,7 +80,25 @@ void Database::createDb()
 {
     QSqlQuery query;
     //TODO complete the function
-    //query.exec("create table " + user);
+}
+
+void Database::initTable(QString user)
+{
+    QSqlQuery query;
+    QString strQuery;
+
+    strQuery = "select * from " + user;
+    query.exec(strQuery);
+
+    if (!query.next())
+    {
+        strQuery = "create table " + user + "log";// like templatelog";
+        query.exec(strQuery);
+        qDebug() << strQuery;
+        strQuery = "create table " + user + "partner";// like templatepartner";
+        query.exec(strQuery);
+        qDebug() << strQuery;
+    }
 }
 
 /*
@@ -193,5 +223,68 @@ void Database::closeDb()
     {
         qDebug() << "database closed";
         db.close();
+    }
+}
+
+bool Database::checkPartnerName(QString user, QString newuser)
+{
+    //return true;
+    QSqlQuery query;
+    QString strQuery;
+
+    strQuery = "select * from " + user + "partner where person = '"
+                + newuser + "'";
+    qDebug() << strQuery;
+    query.exec(strQuery);
+    if(query.next())
+    {
+        qDebug() << "exist name";
+        return true;
+    }
+    else
+    {
+        qDebug() << "not exist name";
+        return false;
+    }
+}
+
+//add a new user to the table [user]partner
+void Database::addPartnerName(QString user, QString newuser, int image, QString ip)
+{
+    QSqlQuery query;
+    QString strQuery;
+    strQuery = "insert into " + user + "partner (person, image, ip) values ('"
+                + newuser + "', '" + QString::number(image) + "', '" + ip +"')";
+    qDebug() << strQuery;
+    query.exec(strQuery);
+}
+
+void Database::addUserName(QString user, int image)
+{
+    QSqlQuery query;
+    QString strQuery;
+    strQuery = "insert into loginhistory (user, image) values ('"
+                + user + "', '" + QString::number(image) + "')";
+    qDebug() << strQuery;
+    query.exec(strQuery);
+}
+
+bool Database::checkUserName(QString user)
+{
+    QSqlQuery query;
+    QString strQuery;
+
+    strQuery = "select * from loginhistory where user = '" + user + "'";
+    qDebug() << strQuery;
+    query.exec(strQuery);
+    if(query.next())
+    {
+        qDebug() << "exist name";
+        return true;
+    }
+    else
+    {
+        qDebug() << "not exist name";
+        return false;
     }
 }
