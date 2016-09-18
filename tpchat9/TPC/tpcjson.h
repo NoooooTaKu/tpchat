@@ -1,17 +1,22 @@
 #ifndef TPCJSON_H
 #define TPCJSON_H
 
+#include <QMainWindow>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
 
 #include "constant.h"
 
-class TpcJson
+class TpcJson : public QMainWindow
 {
+    Q_OBJECT
 public:
-    TpcJson();
-    ~TpcJson();
+    explicit TpcJson(QWidget *parent = 0);
+
+signals:
+
+public slots:
 
 private:
     CommandDecode comdec;
@@ -23,11 +28,12 @@ private:
     int msglen;
     int msgid;
     QString msgbody;
+    PortraitID portraitID;
 
 public slots:
     /** the TPC data to send */
     QString TpcToJson(MessageType type, ErrCode error, QString srcuser, QString dstuser,
-                  int msglen, int msgid, QString msgbody, bool jsonerr);
+                  int msglen, int msgid, QString msgbody, bool jsonerr, PortraitID portraitID);
 
     /** decode json from receive msg */
     void JsonToTpc(QString receiveMsg);
@@ -41,10 +47,11 @@ public slots:
     int getmsgid();
     int getmsglen();
     QString getMsg();
+    PortraitID getPortrait();
 
 private slots:
-    CommandDecode TpcDecode(QString typeStr, int errcode, QString name, QString srcuser, QString dstuser,
-                            int msglen, int msgid, QString msgbody, bool isRespond, bool jsonerr);
+    CommandDecode TpcDecode(QString typeStr, int errcode, int msgidRes, bool isRespond, bool jsonerr);
+
 };
 
 #endif // TPCJSON_H

@@ -1,17 +1,12 @@
 #include "tpcjson.h"
 
-TpcJson::TpcJson()
+TpcJson::TpcJson(QWidget *parent) :
+    QMainWindow(parent)
 {
-    ;
-}
-
-TpcJson::~TpcJson()
-{
-    ;
 }
 
 QString TpcJson::TpcToJson(MessageType type, ErrCode error, QString srcuser, QString dstuser,
-              int msglen, int msgid, QString msgbody, bool jsonerr)
+              int msglen, int msgid, QString msgbody, bool jsonerr, PortraitID portraitID)
 {
     QJsonObject json;
 
@@ -25,17 +20,18 @@ QString TpcJson::TpcToJson(MessageType type, ErrCode error, QString srcuser, QSt
     switch (type)
     {
     case SENT_LOGIN:
-        json.insert("type", "hellotpc");
+        json.insert("type", QString("hellotpc"));
         json.insert("name", srcuser);
+        json.insert("portrait", QString::number((int)portraitID));
         break;
 
     case SENT_CHAT:
-        json.insert("type", "unichat");
+        json.insert("type", QString("unichat"));
         json.insert("entry", json_chat);
         break;
 
     case SENT_LOGOUT:
-        json.insert("type", "bye");
+        json.insert("type", QString("bye"));
         json.insert("name", srcuser);
         break;
 
@@ -45,26 +41,27 @@ QString TpcJson::TpcToJson(MessageType type, ErrCode error, QString srcuser, QSt
         case ERR_JSON:
             if (jsonerr == true)
             {
-                json.insert("type", "unknown");
+                json.insert("type", QString("unknown"));
                 json.insert("errcode", QString::number(error));
             }
             else
             {
-                json.insert("type", "login");
+                json.insert("type", QString("hellotpc"));
                 json.insert("errcode", QString::number(error));
             }
             break;
 
         default:
-            json.insert("type", "login");
+            json.insert("type", QString("login"));
             json.insert("errcode", QString::number(error));
             json.insert("name", srcuser);
+            json.insert("portrait", QString::number((int)portraitID));
             break;
         }
         break;
 
     case RESP_CHAT:
-        json.insert("type", "unichat");
+        json.insert("type", QString("unichat"));
         json.insert("errcode", QString::number(error));
         json.insert("msgid", QString::number(msgid));
         json.insert("name", srcuser);
@@ -84,6 +81,7 @@ QString TpcJson::TpcToJson(MessageType type, ErrCode error, QString srcuser, QSt
 void TpcJson::JsonToTpc(QString receiveMsg)
 {
     this->comdec = NO_COMMAND;
+    this->portraitID = PORTRAIT_DEFAULT;
 
     bool isRespond = false;
     bool jsonerr = false;
@@ -97,6 +95,7 @@ void TpcJson::JsonToTpc(QString receiveMsg)
     QJsonValue error_value;
     QJsonValue msgid_value;
     QJsonValue entry_value;
+    QJsonValue portrait_value;
     QString typeStr;
     int errcode;
     int msgidRes;
@@ -120,7 +119,7 @@ void TpcJson::JsonToTpc(QString receiveMsg)
                 {
                     typeStr = type_value.toString();
                 }
-                if (typeStr == QString("hellotpc") && !obj.contains("name"))
+                if (typeStr == QString("hellotpc") && (!obj.contains("name") && !obj.contains("errcode")))
                 {
                     this->comdec = NEW_LOGIN_JSON_SEND;
                     return ;
@@ -146,13 +145,22 @@ void TpcJson::JsonToTpc(QString receiveMsg)
                 }
             }
 
+            if (obj.contains("portrait"))
+            {
+                portrait_value = obj.take("portrait");
+                if (portrait_value.isString())
+                {
+                    this->portraitID = PortraitID(portrait_value.toString().toInt());
+                }
+            }
+
             if (obj.contains("errcode"))
             {
                 isRespond = true;
                 error_value = obj.take("errcode");
                 if (error_value.isString())
                 {
-                    errcode = error_value.toInt();
+                    errcode = error_value.toString().toInt();
                 }
             }
 
@@ -161,7 +169,7 @@ void TpcJson::JsonToTpc(QString receiveMsg)
                 msgid_value = obj.take("msgid");
                 if (msgid_value.isString())
                 {
-                    msgidRes = msgid_value.toInt();
+                    msgidRes = msgid_value.toString().toInt();
                 }
             }
 
@@ -187,12 +195,12 @@ void TpcJson::JsonToTpc(QString receiveMsg)
                         emsglen_value = obj.take("msglen");
                         if (emsglen_value.isString())
                         {
-                            this->msglen = emsglen_value.toInt();
+                            this->msglen = emsglen_value.toString().toInt();
                         }
                         emsgid_value = obj.take("msgid");
                         if (emsgid_value.isString())
                         {
-                            this->msgid = emsgid_value.toInt();
+                            this->msgid = emsgid_value.toString().toInt();
                         }
                         emsgbody_value = obj.take("msgbody");
                         if (emsgbody_value.isString())
@@ -207,12 +215,6 @@ void TpcJson::JsonToTpc(QString receiveMsg)
                     }
                 }
             }
-            else
-            {
-                this->comdec = NEW_CHAT_JSON_SEND;
-                return ;
-            }
-
         }
     }
     else
@@ -220,12 +222,11 @@ void TpcJson::JsonToTpc(QString receiveMsg)
         jsonerr = true;
     }
 
-    this->comdec = TpcDecode(typeStr, errcode, this->name, this->srcuser, this->dstuser,
-                       this->msglen, this->msgid, this->msgbody, isRespond, jsonerr);
+    this->error = (ErrCode)errcode;
+    this->comdec = TpcDecode(typeStr, errcode, msgidRes, isRespond, jsonerr);
 }
 
-CommandDecode TpcJson::TpcDecode(QString typeStr, int errcode, QString name, QString srcuser, QString dstuser,
-                        int msglen, int msgid, QString msgbody, bool isRespond, bool jsonerr)
+CommandDecode TpcJson::TpcDecode(QString typeStr, int errcode, int msgidRes, bool isRespond, bool jsonerr)
 {
     CommandDecode comdec = NO_COMMAND;
     if (jsonerr == true)
@@ -243,6 +244,7 @@ CommandDecode TpcJson::TpcDecode(QString typeStr, int errcode, QString name, QSt
                 if (typeStr == QString("unichat"))
                 {
                     comdec = NEW_CHAT_JSON;
+                    this->msgid = msgidRes;
                 }
                 break;
             case ERR_LOGIN:
@@ -250,12 +252,15 @@ CommandDecode TpcJson::TpcDecode(QString typeStr, int errcode, QString name, QSt
                 break;
             case ERR_RECEIVE:
                 comdec = NEW_CHAT_DST;
+                this->msgid = msgidRes;
                 break;
             case ERR_MAXLENGTH:
                 comdec = NEW_CHAT_LEN;
+                this->msgid = msgidRes;
                 break;
             case ERR_MSGLENGTH:
                 comdec = NEW_CHAT_BODYLEN;
+                this->msgid = msgidRes;
                 break;
             case ERR_NO:
                 if (typeStr == QString("login"))
@@ -265,6 +270,7 @@ CommandDecode TpcJson::TpcDecode(QString typeStr, int errcode, QString name, QSt
                 if (typeStr == QString("unichat"))
                 {
                     comdec = NEW_CHAT_OK;
+                    this->msgid = msgidRes;
                 }
                 break;
             default:
@@ -334,4 +340,9 @@ int TpcJson::getmsglen()
 QString TpcJson::getMsg()
 {
     return this->msgbody;
+}
+
+PortraitID TpcJson::getPortrait()
+{
+    return this->portraitID;
 }

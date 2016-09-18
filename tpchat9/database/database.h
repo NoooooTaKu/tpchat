@@ -26,10 +26,6 @@ public slots:
     //绑定数据，用不上，请忽略
     void bindData();
 
-    //未完成，现在暂时不用
-    //当有一个新的联系人记录时用到，输入参数是当前用户名,创建两张表，一张名为[user]log，一张名为[user]partner
-    void createTable(QString user);
-
     //增加一条聊天记录，收到消息时或按下send按钮发送信息时引用
     //输入参数：用户名、时间、聊天对象用户名、文字内容、
     //NOTICE： 输入参数 int send 表示消息是谁发出的，1表示消息由自己发出，0表示消息由对方发出，在查看历史记录时用到
@@ -58,8 +54,8 @@ public slots:
 	// 该函数是不会自动检查是否已经存在联系人的，一定要先手动引用checkPartnerName
     void addPartnerName(QString user, QString newuser, int image, QString ip);
 
-    // 暂时不用
-	//init two tables ***log and ***partner, check if exists, if not, creat them
+    // 初始化数据库,当用户登录成功时,检查数据库内是否已经存在聊天记录,若不存在,则创建新表
+    // init two tables ***log and ***partner, check if exists, if not, creat them
     void initTable(QString user);
 
     // 向登录记录中增加一个用户名
@@ -70,6 +66,25 @@ public slots:
 	// 使用场合是在登录界面中，可以根据当前输入的结果自动补全头像（扩展功能）
 	// ****************注意返回值，不要用错****************
     bool checkUserName(QString user);
+
+    // 向数据库的sendcache表中添加一条消息记录
+    // 使用场合,在聊天窗口按下发送按钮之后
+    void addMsgToSendcache(QString time, QString dstuser,
+                           QString content, int msgid);
+    // 从数据库的sendcache表中移除一条消息记录
+    // 使用场合:收到dstuser返回的接受成功信号后执行
+    // 作用:msgid没有存在聊天记录的必要,仅作为发送信息的标志,应该及时清理缓存,防止msgid太多,不好分配
+    void removeMsgFromSendcache(int msgid);
+
+    // 清除发送消息缓存
+    // 使用场合:退出程序或登出时
+    void clearSendcache();
+
+    //拆分字符串函数
+    //拆分字符串函数
+    //输入参数:信息字符串QString msg
+    //因为可能拆分为多个字符串,所以返回值是QStringList,其中的每项长度都会小于1024
+    QStringList cutString(QString msg);
 };
 
 #endif // DATABASE_H
